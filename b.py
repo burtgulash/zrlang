@@ -12,17 +12,56 @@ class Array(Value):
     def __repr__(self):
         return "[" + " ".join(map(str, self.v)) + "]"
 
+def flush_til(res, ops, assoc):
+    R = res.pop()
+    while ops:
+        if ops[-1][1] < assoc:
+            break
+        H = ops.pop()[0]
+        L = res.pop()
+        R = [L, H, R]
+    return R
+
+def shunt(xs):
+    res, ops = [], []
+    assert xs
+
+    res.append(xs[0])
+    for i in range(1, len(xs) - 1, 2):
+        H = xs[i]
+        R = xs[i + 1]
+
+        assoc, right = 0, 0
+        if H == "+":
+            assoc = 1
+        elif H == "*":
+            assoc = 2
+        elif H == "|":
+            assoc = 0
+            right = 1
+        elif H == "~":
+            right = 1
+        else:
+            assert False
+
+        res.append(flush_til(res, ops, assoc + right))
+        res.append(R)
+        ops.append((H, assoc))
+
+    return flush_til(res, ops, -1)
+
+
 def interpret(start_paren, buf):
     if buf is None:
         return NIL
-    elif start_paren == "(":
+    elif start_paren in "(\0":
         # TODO shunting yard
-        y = buf
-        return y
-    elif start_paren == "[":
-        return Array(buf)
+        return shunt(buf)
     elif start_paren == "{":
         buf[0] = Var(buf[0])
+        return shunt(buf)
+    elif start_paren == "[":
+        return Array(buf)
 
     elif start_paren == "[|":
 
@@ -94,18 +133,18 @@ def parse(i, start_paren, quote, cs, xs):
     token = None
     leading_punct = False
 
-    while i[0] + 1 < len(xs) - 1:
+    while i[0] + 1 < len(xs):
         i[0] += 1
         c, c1 = xs[i[0]], xs[i[0] + 1]
 
         if c.isalnum() or c in "._":
-            token_ = "symbol"
+            new_token = "symbol"
         elif c in '"()[]{}\0 ':
-            token_ = None
+            new_token = None
         else:
-            token_ = "punct"
+            new_token = "punct"
 
-        if token_ != token and token is not None:
+        if new_token != token and token is not None:
             if len(buf) == 0 and token == "punct":
                 leading_punct = True
             buf.append("".join(cs))
@@ -113,10 +152,10 @@ def parse(i, start_paren, quote, cs, xs):
 
         if token is None: assert not cs
 
-        if token_ is not None:
+        if new_token is not None:
             cs.append(c)
 
-        token = token_
+        token = new_token
 
         if c == " ":
             continue
@@ -136,14 +175,10 @@ def parse(i, start_paren, quote, cs, xs):
         elif c == "|" and c1 in ")]}":
             i[0] += 1
             return _finalize(buf, leading_punct, start_paren, xs[i[0]])
-        elif c in ")]}":
+        elif c in ")]}\0":
             return _finalize(buf, leading_punct, start_paren, c)
 
-    i[0] += 1
-    assert i[0] == len(xs) - 1
-    assert xs[i[0]] == "\0"
-    return _finalize(buf, leading_punct, start_paren, "\0")
-
+    assert False
 
 
 def toint(x):
@@ -183,7 +218,7 @@ def exe(xs):
 
 if __name__ == "__main__":
     x = " ".join(sys.argv[1:])
-    x += "\0"
+    x += "\0\0"
 
     i, cs = [-1], []
     print("X", x)
