@@ -7,6 +7,15 @@ NIL = None
 
 class Value:
     def __init__(self, v): self.v = v
+class Block(Value):
+    def __repr__(self):
+        return f"[{self.v}]"
+class Quote(Value):
+    def __repr__(self):
+        return f"\[{self.v}]"
+class Unquote(Value):
+    def __repr__(self):
+        return f"/[{self.v}]"
 class Var(Value):
     def __repr__(self):
         return f"{{{self.v}}}"
@@ -66,26 +75,22 @@ def shunt(xs):
     return flush_til(res, ops, -1)
 
 
-def interpret(start_paren, buf):
+def interpret(start_paren, quote, buf):
     if buf is None:
-        return NIL
+        buf = NIL
     elif start_paren in "(\0":
-        # TODO shunting yard
-        return shunt(buf)
+        buf = shunt(buf)
     elif start_paren == "{":
         buf[0] = Var(buf[0])
-        return shunt(buf)
+        buf = shunt(buf)
     elif start_paren == "[":
-        return Array(buf)
+        if quote:
+            buf = Quote(buf)
+        else:
+            buf = Array(buf)
 
-    elif start_paren == "[|":
-
-        pass
-
-        #(x, y => {x}, {y} = {{y}}, {{x}})
-        #[| 1 + {| x |} + 3 |]
-        #foo = (x, y -> {|x|} + {y})
-
+    if quote and start_paren != "[":
+        buf = Unquote(buf)
 
     return buf
 
@@ -126,7 +131,7 @@ def opposite_paren(start):
     return ")]}\0"["([{\0".index(start)]
 
 
-def _finalize(buf, leading_punct, start_paren, end_paren):
+def _finalize(buf, leading_punct, start_paren, end_paren, quote):
     if opposite_paren(start_paren) != end_paren:
         raise ValueError(f"Parens don't match: {start_paren} <> {end_paren}")
     if len(buf) < 1:
@@ -137,7 +142,7 @@ def _finalize(buf, leading_punct, start_paren, end_paren):
         if len(buf) % 2 == 0:
             buf = [*buf, None]
 
-    buf = interpret(start_paren, buf)
+    buf = interpret(start_paren, quote, buf)
     return buf
 
 
@@ -180,18 +185,19 @@ def parse(i, start_paren, quote, cs, xs):
             buf.append(x)
         if c in "([{":
             if c1 == "|":
-                quote = True
+                quote_ = True
                 i[0] += 1
             else:
-                quote = False
-            x = parse(i, c, quote, cs, xs)
+                quote_ = False
+            x = parse(i, c, quote_, cs, xs)
             cs.clear()
             buf.append(x)
         elif c == "|" and c1 in ")]}":
             i[0] += 1
-            return _finalize(buf, leading_punct, start_paren, xs[i[0]])
+            c, c1 = xs[i[0]], xs[i[0] + 1]
+            return _finalize(buf, leading_punct, start_paren, c, quote)
         elif c in ")]}\0":
-            return _finalize(buf, leading_punct, start_paren, c)
+            return _finalize(buf, leading_punct, start_paren, c, quote)
 
     assert False
 
@@ -201,6 +207,13 @@ def toint(x):
         return 0
     return int(x)
 
+def quasiquote(x, env):
+    if isinstance(x, list):
+        return [quasiquote(x_, env) for x_ in x]
+    elif isinstance(x, Unquote):
+        return exe(x.v, env)
+    else:
+        return x
 
 def exe(x, env):
     while True:
@@ -213,6 +226,12 @@ def exe(x, env):
             x = OPS[H](L, R)
         elif isinstance(x, Var):
             x = env.get(x.v)
+        elif isinstance(x, Unquote):
+            x = x.v
+        elif isinstance(x, Quote):
+            return Quote(quasiquote(x.v, env))
+        elif isinstance(x, Block):
+            return x
         else:
             return x
 
