@@ -10,6 +10,26 @@ class Value:
 class Block(Value):
     def __repr__(self):
         return f"[{self.v}]"
+class Builtin(Value):
+    def __init__(self, name, fn):
+        self.name = name
+        self.v = fn
+    def __repr__(self):
+        return f"{{{self.name}}}()"
+class Function(Value):
+    def __init__(self, xname, yname, body):
+        self.xname = xname
+        self.yname = yname
+        self.v = body
+    def __repr__(self):
+        return f"{{{self.name}}}()"
+class Special(Value):
+    def __init__(self, xname, yname, body):
+        self.xname = xname
+        self.yname = yname
+        self.v = body
+    def __repr__(self):
+        return f"{{{self.name}}}[]"
 class Quote(Value):
     def __repr__(self):
         return f"\[{self.v}]"
@@ -30,12 +50,18 @@ def else_(a, b):
 
 
 OPS = {
-    "~": lambda a, b: a + b,
-    "+": lambda a, b: toint(a) + toint(b),
-    "*": lambda a, b: toint(a) * toint(b),
-    "-": lambda a, b: toint(a) - toint(b),
-    "|": else_,
-    None: lambda a, b: a, # NOP
+    "~": Builtin("~", lambda a, b: a + b),
+    "+": Builtin("+", lambda a, b: toint(a) + toint(b)),
+    "*": Builtin("*", lambda a, b: toint(a) * toint(b)),
+    "-": Builtin("-", lambda a, b: toint(a) - toint(b)),
+    "|": Builtin("|", else_),
+}
+
+ASSOC = {
+    # (associativity_precedence, right_associativity)
+    "+": (1, 0),
+    "*": (2, 0),
+    "|": (0, 1),
 }
 
 def flush_til(res, ops, assoc):
@@ -57,16 +83,7 @@ def shunt(xs):
         H = xs[i]
         R = xs[i + 1]
 
-        assoc, right = 0, 0
-        if H == "+":
-            assoc = 1
-        elif H == "*":
-            assoc = 2
-        elif H == "|":
-            assoc = 0
-            right = 1
-        elif H == "~":
-            right = 1
+        assoc, right = ASSOC.get(H, (0, 0))
 
         res.append(flush_til(res, ops, assoc + right))
         res.append(R)
@@ -221,15 +238,40 @@ def exe(x, env):
             assert len(x) == 3
             L = exe(x[0], env)
             H = exe(x[1], env)
+
+            # TODO handle specials before evaluating R
+
+            if isinstance(H, str):
+                # TODO variable resolution on H position
+                H = env.get(H)
+
+            elif isinstance(H, Special):
+                x = H.v(L, R)
+                continue
+
             R = exe(x[2], env)
 
-            x = OPS[H](L, R)
+            if H is NIL:
+                x = L
+            elif isinstance(H, Builtin):
+                # TODO check op dispatch
+                x = H.v(L, R)
+            elif isinstance(H, Function):
+                # TODO grab varnames from function
+                # TODO tail-call optimization
+                env = ({}, env)
+                x = H.v
+            else:
+                print("H type:", type(H).__name__)
+                assert False
+                pass
+                # TODO handle unhandled H type
         elif isinstance(x, Var):
             x = env.get(x.v)
         elif isinstance(x, Unquote):
             x = x.v
         elif isinstance(x, Quote):
-            return Quote(quasiquote(x.v, env))
+            return Block(quasiquote(x.v, env))
         elif isinstance(x, Block):
             return x
         else:
@@ -247,7 +289,8 @@ if __name__ == "__main__":
     print("Y", y)
 
     env = {
-            "A": 123
+        "A": 123,
+        **OPS,
     }
     z = exe(y, env)
     print("Z", z)
