@@ -187,32 +187,25 @@ def toint(x):
     return int(x)
 
 
-def exe_(x):
-    if isinstance(x, list):
-        return exe(x)
-    return x
+def exe(x):
+    while True:
+        if isinstance(x, list):
+            assert len(x) == 3
+            L = exe(x[0])
+            H = exe(x[1])
+            R = exe(x[2])
 
+            op = {
+                "~": lambda a, b: a + b,
+                "+": lambda a, b: toint(a) + toint(b),
+                "*": lambda a, b: toint(a) * toint(b),
+                "-": lambda a, b: toint(a) - toint(b),
+                None: lambda a, b: a, # NOP
+            }[H]
 
-
-def exe(xs):
-    assert len(xs) % 2 == 1
-
-    L = exe_(xs[0])
-    for i in range(1, len(xs), 2):
-        H = exe_(xs[i])
-        R = exe_(xs[i + 1])
-
-        op = {
-            "~": lambda a, b: a + b,
-            "+": lambda a, b: toint(a) + toint(b),
-            "*": lambda a, b: toint(a) * toint(b),
-            "-": lambda a, b: toint(a) - toint(b),
-            None: lambda a, b: a, # NOP
-        }[H]
-
-        L = op(L, R)
-
-    return L
+            x = op(L, R)
+        else:
+            return x
 
 
 
