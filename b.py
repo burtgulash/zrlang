@@ -7,10 +7,27 @@ NIL = None
 
 class Value:
     def __init__(self, v): self.v = v
-class Var(Value): pass
+class Var(Value):
+    def __repr__(self):
+        return f"{{{self.v}}}"
 class Array(Value):
     def __repr__(self):
         return "[" + " ".join(map(str, self.v)) + "]"
+
+def else_(a, b):
+    if a == NIL:
+        return b
+    return a
+
+
+OPS = {
+    "~": lambda a, b: a + b,
+    "+": lambda a, b: toint(a) + toint(b),
+    "*": lambda a, b: toint(a) * toint(b),
+    "-": lambda a, b: toint(a) - toint(b),
+    "|": else_,
+    None: lambda a, b: a, # NOP
+}
 
 def flush_til(res, ops, assoc):
     R = res.pop()
@@ -41,8 +58,6 @@ def shunt(xs):
             right = 1
         elif H == "~":
             right = 1
-        else:
-            assert False
 
         res.append(flush_til(res, ops, assoc + right))
         res.append(R)
@@ -187,23 +202,17 @@ def toint(x):
     return int(x)
 
 
-def exe(x):
+def exe(x, env):
     while True:
         if isinstance(x, list):
             assert len(x) == 3
-            L = exe(x[0])
-            H = exe(x[1])
-            R = exe(x[2])
+            L = exe(x[0], env)
+            H = exe(x[1], env)
+            R = exe(x[2], env)
 
-            op = {
-                "~": lambda a, b: a + b,
-                "+": lambda a, b: toint(a) + toint(b),
-                "*": lambda a, b: toint(a) * toint(b),
-                "-": lambda a, b: toint(a) - toint(b),
-                None: lambda a, b: a, # NOP
-            }[H]
-
-            x = op(L, R)
+            x = OPS[H](L, R)
+        elif isinstance(x, Var):
+            x = env.get(x.v)
         else:
             return x
 
@@ -218,5 +227,8 @@ if __name__ == "__main__":
     y = parse(i, "\0", False, cs, x)
     print("Y", y)
 
-    z = exe(y)
+    env = {
+            "A": 123
+    }
+    z = exe(y, env)
     print("Z", z)
