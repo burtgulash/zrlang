@@ -38,14 +38,27 @@ class Var(Value):
 class Array(Value):
     def __repr__(self):
         return "[" + " ".join(map(str, self.v)) + "]"
+class Cons(Value):
+    def __repr__(self):
+        return f"({self.v[0]}, {self.v[1]})"
 
 def else_(a, b, _):
     if a == NIL:
         return b
     return a
 
-def function(a, b, env):
-    return Function("x", "y", b, env)
+def mkfunc(a, b, env):
+    if isinstance(a, Cons):
+        xname, yname = a.v
+    else:
+        xname, yname = a.v, None
+    return Function(str(xname), str(yname), b, env)
+
+def mkarray(a, b):
+    if isinstance(a, Array):
+        a.v.append(b)
+        return a
+    return Array([a, b])
 
 
 OPS = {
@@ -53,14 +66,19 @@ OPS = {
     "+":  Builtin(lambda a, b: toint(a) + toint(b)),
     "*":  Builtin(lambda a, b: toint(a) * toint(b)),
     "-":  Builtin(lambda a, b: toint(a) - toint(b)),
+    ":":  Builtin(lambda a, b: Cons((a, b))),
+    ",":  Builtin(mkarray),
+    "\\": Special(lambda a, b, env: b),
     "|":  Special(else_),
-    "->": Special(function),
+    "->": Special(mkfunc),
 }
 
 ASSOC = {
     # (associativity_precedence, right_associativity)
     "+": (5, 0),
     "*": (6, 0),
+    ":": (4, 1),
+    ",": (3, 0),
     "|": (0, 1),
     "->": (0, 1),
 }
@@ -235,6 +253,14 @@ def quasiquote(x, env):
     else:
         return x
 
+def envget(env, key):
+    while env is not None:
+        cur, nxt = env
+        if key in cur:
+            return cur[key]
+        env = nxt
+    return None
+
 def exe(x, env):
     while True:
         if isinstance(x, list):
@@ -247,7 +273,7 @@ def exe(x, env):
 
             if isinstance(H, str):
                 # TODO variable resolution on H position
-                H = env.get(H)
+                H = envget(env, H)
 
             if isinstance(H, Special):
                 x = H.fn(L, R, env)
@@ -268,7 +294,7 @@ def exe(x, env):
                     env_[H.xname] = L
                 if H.yname is not None:
                     env_[H.yname] = R
-                #env = env_ # TODO chain envs
+                env = (env_, H.env)
                 x = H.body
             else:
                 print("H type:", type(H).__name__)
@@ -276,8 +302,7 @@ def exe(x, env):
                 pass
                 # TODO handle unhandled H type
         elif isinstance(x, Var):
-            print("VAR", x.v, env.get(x.v))
-            x = env.get(x.v)
+            x = envget(env, x.v)
         elif isinstance(x, Unquote):
             x = x.v
         elif isinstance(x, Quote):
@@ -302,5 +327,6 @@ if __name__ == "__main__":
         "A": 123,
         **OPS,
     }
+    env = (env, None)
     z = exe(y, env)
     print("Z", z)
