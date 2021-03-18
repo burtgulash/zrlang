@@ -85,16 +85,25 @@ def assign_(a, b, env):
         env[0][a] = b
     return b
 
+def pr_(a, b):
+    print(a)
+    import time
+    time.sleep(.2)
+    return a
+
 OPS = {
     "~":  Builtin(lambda a, b: a + b),
     "+":  Builtin(lambda a, b: toint(a) + toint(b)),
     "*":  Builtin(lambda a, b: toint(a) * toint(b)),
     "-":  Builtin(lambda a, b: toint(a) - toint(b)),
     ":":  Builtin(lambda a, b: Cons((a, b))),
+    "pr": Builtin(pr_),
     ",":  Builtin(mkarray),
     "\\": Special(lambda a, b, env: b),
     "|":  Special(else_),
     "=":  Special(assign),
+#    "==": Builtin(lambda a, b: a.v == b.v),
+#    "?":  Builtin(lambda a, b: b if a is not NIL else NIL),
     "->": Special(mkfunc),
 }
 
@@ -254,7 +263,7 @@ def parse(i, start_paren, quote, cs, xs):
 
         if c.isalnum() or c in "._":
             new_token = "symbol"
-        elif c in ' ()[]{}"#\'\0':
+        elif c in ' ()[]{}"#\'\n\0':
             new_token = None
         else:
             new_token = "punct"
@@ -272,7 +281,7 @@ def parse(i, start_paren, quote, cs, xs):
 
         token = new_token
 
-        if c == " ":
+        if c in " \n":
             continue
         elif c == "#":
             x = parse_rawstring(i, cs, xs)
