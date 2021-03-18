@@ -7,6 +7,13 @@ NIL = None
 
 class Value:
     def __init__(self, v): self.v = v
+class String(Value):
+    def __repr__(self):
+        return f'"{self.v}"'
+class RawString(String): pass
+class Comment(Value):
+    def __repr__(self):
+        return f'#{self.v}'
 class Block(Value):
     def __repr__(self):
         return f"[{self.v}]"
@@ -112,8 +119,26 @@ def shunt(xs):
 
     return flush_til(res, ops, -1)
 
+def merge_strings(buf):
+    buf_ = []
+    runs = []
+    for x in buf:
+        if isinstance(x, RawString):
+            runs.append(x.v)
+        else:
+            if runs:
+                buf_.append("".join(runs))
+                runs = []
+            buf_.append(x)
+    if runs:
+        buf_.append("".join(runs))
+    return buf_
+
 
 def interpret(start_paren, quote, buf):
+    buf = merge_strings(buf)
+    buf = [x for x in buf if not isinstance(x, Comment)]
+
     if buf is None:
         buf = NIL
     elif start_paren in "(\0":
@@ -132,12 +157,27 @@ def interpret(start_paren, quote, buf):
 
     return buf
 
+def parse_rawstring(i, cs, xs):
+    assert len(cs) == 0
+    while True:
+        i[0] += 1
+        c = xs[i[0]]
+        if c == "\n":
+            return "".join(cs)
+        elif c == "\0":
+            i[0] -= 1
+            return "".join(cs)
+        cs.append(c)
+
 def parse_string(i, cs, xs):
     assert len(cs) == 0
     escape = False
-    while i[0] < len(xs):
+    #while i[0] + 1 < len(xs):
+    while True:
         i[0] += 1
         c = xs[i[0]]
+
+        #if c == "\0": return "UNTERMINATED STRING"
 
         if escape:
             if c == "n":
@@ -155,14 +195,15 @@ def parse_string(i, cs, xs):
 
         if c == '"':
             return "".join(cs)
-        if c == "\\":
+        elif c == "\\":
             escape = True
             continue
+        elif c == "\0":
+            break
 
         cs.append(c)
 
-    cs = "".join(cs)
-    raise ValueError(f"unterminated string: {cs}")
+    raise ValueError(f"unterminated string: {''.join(cs)}")
 
 
 def opposite_paren(start):
@@ -197,7 +238,7 @@ def parse(i, start_paren, quote, cs, xs):
 
         if c.isalnum() or c in "._":
             new_token = "symbol"
-        elif c in '"()[]{}\0 ':
+        elif c in ' ()[]{}"#\'\0':
             new_token = None
         else:
             new_token = "punct"
@@ -217,11 +258,19 @@ def parse(i, start_paren, quote, cs, xs):
 
         if c == " ":
             continue
-        if c == '"':
+        elif c == "#":
+            x = parse_rawstring(i, cs, xs)
+            cs.clear()
+            buf.append(Comment(x))
+        elif c == "'":
+            x = parse_rawstring(i, cs, xs)
+            cs.clear()
+            buf.append(RawString(x))
+        elif c == '"':
             x = parse_string(i, cs, xs)
             cs.clear()
-            buf.append(x)
-        if c in "([{":
+            buf.append(String(x))
+        elif c in "([{":
             if c1 == "|":
                 quote_ = True
                 i[0] += 1
