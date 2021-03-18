@@ -16,7 +16,7 @@ class Comment(Value):
         return f'#{self.v}'
 class Block(Value):
     def __repr__(self):
-        return f"[{self.v}]"
+        return f"\\[{self.v}]"
 class Builtin(Value):
     def __init__(self, fn):
         self.fn = fn
@@ -35,7 +35,7 @@ class Function(Value):
         return f"func()"
 class Quote(Value):
     def __repr__(self):
-        return f"\[{self.v}]"
+        return f"\\[{self.v}]"
 class Unquote(Value):
     def __repr__(self):
         return f"/[{self.v}]"
@@ -45,6 +45,7 @@ class Var(Value):
 class Array(Value):
     def __repr__(self):
         return "[" + " ".join(map(str, self.v)) + "]"
+class ParsedArray(Array): pass
 class Cons(Value):
     def __repr__(self):
         return f"({self.v[0]}, {self.v[1]})"
@@ -135,28 +136,6 @@ def merge_strings(buf):
     return buf_
 
 
-def interpret(start_paren, quote, buf):
-    buf = merge_strings(buf)
-    buf = [x for x in buf if not isinstance(x, Comment)]
-
-    if buf is None:
-        buf = NIL
-    elif start_paren in "(\0":
-        buf = shunt(buf)
-    elif start_paren == "{":
-        buf[0] = Var(buf[0])
-        buf = shunt(buf)
-    elif start_paren == "[":
-        if quote:
-            buf = Quote(buf)
-        else:
-            buf = Array(buf)
-
-    if quote and start_paren != "[":
-        buf = Unquote(buf)
-
-    return buf
-
 def parse_rawstring(i, cs, xs):
     assert len(cs) == 0
     while True:
@@ -189,7 +168,8 @@ def parse_string(i, cs, xs):
             elif c == "\\":
                 cs.append(c)
             else:
-                raise ValueError(f"invalid escape in string: \{c}")
+                cs.append("\\")
+                cs.append(c)
             escape = False
             continue
 
@@ -209,19 +189,39 @@ def parse_string(i, cs, xs):
 def opposite_paren(start):
     return ")]}\0"["([{\0".index(start)]
 
+def pad_buf(leading_punct, buf):
+    if leading_punct:
+        buf = [None, *buf]
+    if len(buf) % 2 == 0:
+        buf = [*buf, None]
+    return buf
 
 def _finalize(buf, leading_punct, start_paren, end_paren, quote):
+    buf = merge_strings(buf)
+    buf = [x for x in buf if not isinstance(x, Comment)]
+
     if opposite_paren(start_paren) != end_paren:
         raise ValueError(f"Parens don't match: {start_paren} <> {end_paren}")
-    if len(buf) < 1:
-        buf = None
-    elif len(buf) > 1:
-        if leading_punct:
-            buf = [None, *buf]
-        if len(buf) % 2 == 0:
-            buf = [*buf, None]
 
-    buf = interpret(start_paren, quote, buf)
+    if buf is None:
+        buf = NIL
+    elif start_paren in "(\0":
+        buf = pad_buf(leading_punct, buf)
+        buf = shunt(buf)
+    elif start_paren == "{":
+        buf = pad_buf(leading_punct, buf)
+        buf[0] = Var(buf[0])
+        buf = shunt(buf)
+    elif start_paren == "[":
+        if quote:
+            buf = pad_buf(leading_punct, buf)
+            buf = Quote(buf)
+        else:
+            buf = ParsedArray(buf)
+
+    if quote and start_paren != "[":
+        buf = Unquote(buf)
+
     return buf
 
 
@@ -346,10 +346,7 @@ def exe(x, env):
                 env = (env_, H.env)
                 x = H.body
             else:
-                print("H type:", type(H).__name__)
-                assert False
-                pass
-                # TODO handle unhandled H type
+                raise ValueError(f"H type: {type(H).__name__}")
         elif isinstance(x, Var):
             x = envget(env, x.v)
         elif isinstance(x, Unquote):
@@ -358,6 +355,8 @@ def exe(x, env):
             return Block(quasiquote(x.v, env))
         elif isinstance(x, Block):
             return x
+        elif isinstance(x, ParsedArray):
+            x = Array([exe(x_, env) for x_ in x.v])
         else:
             return x
 
