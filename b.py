@@ -69,6 +69,22 @@ def mkarray(a, b):
     return Array([a, b])
 
 
+def assign(a, b, env):
+    b = exe(b, env)
+    return assign_(a, b, env)
+
+def assign_(a, b, env):
+    if isinstance(a, Cons):
+        if isinstance(b, Cons):
+            assign_(a.v[0], b.v[0], env)
+            assign_(a.v[1], b.v[1], env)
+        else:
+            assign_(a.v[0], b, env)
+            assign_(a.v[1], b, env)
+    else:
+        env[0][a] = b
+    return b
+
 OPS = {
     "~":  Builtin(lambda a, b: a + b),
     "+":  Builtin(lambda a, b: toint(a) + toint(b)),
@@ -78,16 +94,19 @@ OPS = {
     ",":  Builtin(mkarray),
     "\\": Special(lambda a, b, env: b),
     "|":  Special(else_),
+    "=":  Special(assign),
     "->": Special(mkfunc),
 }
 
 ASSOC = {
     # (associativity_precedence, right_associativity)
-    "+": (5, 0),
-    "*": (6, 0),
-    ":": (4, 1),
-    ",": (3, 0),
-    "|": (0, 1),
+    "*":  (6, 0),
+    "+":  (5, 0),
+    ":":  (4, 1),
+    ",":  (3, 0),
+    "=":  (2, 1), # right?
+    "\\": (1, 1),
+    "|":  (0, 1),
     "->": (0, 1),
 }
 
