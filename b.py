@@ -200,10 +200,7 @@ def _finalize(buf, leading_punct, start_paren, end_paren, quote):
     buf = merge_strings(buf)
     buf = [x for x in buf if not isinstance(x, Comment)]
 
-    if opposite_paren(start_paren) != end_paren:
-        raise ValueError(f"Parens don't match: {start_paren} <> {end_paren}")
-
-    if buf is None:
+    if len(buf) == 0:
         buf = NIL
     elif start_paren in "(\0":
         buf = pad_buf(leading_punct, buf)
@@ -282,8 +279,16 @@ def parse(i, start_paren, quote, cs, xs):
         elif c == "|" and c1 in ")]}":
             i[0] += 1
             c, c1 = xs[i[0]], xs[i[0] + 1]
+            if opposite_paren(start_paren) != c or not quote:
+                start_paren = start_paren if start_paren != "\0" else "$"
+                raise ValueError(f"Parens don't match: {start_paren} <> |{c}")
             return _finalize(buf, leading_punct, start_paren, c, quote)
         elif c in ")]}\0":
+            if opposite_paren(start_paren) != c or quote:
+                start_paren = start_paren if start_paren != "\0" else "$"
+                start_paren = ("|" if quote else "") + start_paren
+                end_paren = c if c != "\0" else "$"
+                raise ValueError(f"Parens don't match: {start_paren} <> {end_paren}")
             return _finalize(buf, leading_punct, start_paren, c, quote)
 
     assert False
