@@ -1,0 +1,9 @@
+- conditionals
+- boolean values + arithmetic
+- max/min + and/or
+- identity element for * (eg. (*2))
+- sparse array types
+  - pair array (a:1,b:2)
+  - untyped array pair {d,a:1,b:2} -> (,a,b) : (,1,2)
+  - typed array pair (str.int,a:1,b:2) -> {str,a,b} : {int,1,2}
+- () and {} difference of evalution of first element when it is punct (,1,2,3) vs {,1,2,3}
