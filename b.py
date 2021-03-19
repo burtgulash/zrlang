@@ -102,8 +102,8 @@ OPS = {
     "\\": Special(lambda a, b, env: b),
     "|":  Special(else_),
     "=":  Special(assign),
-#    "==": Builtin(lambda a, b: a.v == b.v),
-#    "?":  Builtin(lambda a, b: b if a is not NIL else NIL),
+    "==": Builtin(lambda a, b: (toint(a) == toint(b)) or NIL),
+    "?":  Builtin(lambda a, b: NIL if a == NIL else b),
     "->": Special(mkfunc),
 }
 
@@ -112,11 +112,11 @@ ASSOC = {
     "*":  (6, 0),
     "+":  (5, 0),
     ":":  (4, 1),
-    ",":  (3, 0),
-    "=":  (2, 1), # right?
-    "\\": (1, 1),
-    "|":  (0, 1),
-    "->": (0, 1),
+    ",":  (-2, 0),
+    "=":  (-3, 1), # right?
+    "\\": (-4, 1),
+    "|":  (-5, 1),
+    "->": (-6, 1),
 }
 
 def flush_til(res, ops, assoc):
@@ -138,7 +138,7 @@ def shunt(xs):
         H = xs[i]
         R = xs[i + 1]
 
-        assoc, right = 5, 0
+        assoc, right = 0, 0
         if isinstance(H, str) and H in ASSOC:
             assoc, right = ASSOC[H]
 
@@ -146,7 +146,7 @@ def shunt(xs):
         res.append(R)
         ops.append((H, assoc))
 
-    return flush_til(res, ops, -1)
+    return flush_til(res, ops, -999)
 
 def merge_strings(buf):
     buf_ = []
@@ -355,7 +355,10 @@ def exe(x, env):
 
             if isinstance(H, str):
                 # TODO variable resolution on H position
-                H = envget(env, H)
+                Hname = H
+                H = envget(env, Hname)
+                if H == NIL:
+                    raise ValueError(f"FUNC {Hname} not found")
 
             if isinstance(H, Special):
                 x = H.fn(L, R, env)
@@ -369,9 +372,7 @@ def exe(x, env):
                 # TODO check op dispatch
                 x = H.fn(L, R)
             elif isinstance(H, Function):
-                # TODO grab varnames from function
-                # TODO tail-call optimization
-                env_ = {}
+                env_ = {"_f": H}
                 if H.xname is not None:
                     env_[H.xname] = L
                 if H.yname is not None:
