@@ -99,7 +99,8 @@ OPS = {
     ":":  Builtin(lambda a, b: Cons((a, b))),
     "pr": Builtin(pr_),
     ",":  Builtin(mkarray),
-    "\\": Special(lambda a, b, env: b),
+    "\\":  Special(lambda a, b, env: b),
+    ";":  Special(lambda a, b, env: b),
     "|":  Special(else_),
     "=":  Special(assign),
     "==": Builtin(lambda a, b: (toint(a) == toint(b)) or NIL),
@@ -114,7 +115,7 @@ ASSOC = {
     ":":  (4, 1),
     ",":  (-2, 0),
     "=":  (-3, 1), # right?
-    "\\": (-4, 1),
+    ";":  (-4, 1),
     "|":  (-5, 1),
     "->": (-6, 1),
 }
@@ -266,7 +267,7 @@ def parse(i, start_paren, quote, cs, xs):
         elif c in ' ()[]{}"#\'\n\0':
             new_token = None
         else:
-            new_token = "punct"
+            new_token = "punct" # TODO make punct character set explicit
 
         if new_token != token and token is not None:
             if len(buf) == 0 and token == "punct":
