@@ -59,7 +59,7 @@ def mkfunc(a, b, env):
     if isinstance(a, Cons):
         xname, yname = a.v
     else:
-        xname, yname = a.v, None
+        xname, yname = a, None
     return Function(str(xname), str(yname), b, env)
 
 def mkarray(a, b):
